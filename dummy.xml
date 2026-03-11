@@ -1,0 +1,16 @@
+<mujoco model="two_dof_robot">
+  <compiler angle="radian"/>
+
+  <worldbody>
+    <body name="link1">
+      <inertial pos="0 0 0.5" mass="1" diaginertia="0.01 0.01 0.001"/>
+      <joint name="joint1" pos="0 0 0" axis="0 0 1" range="-314159 314159" actuatorfrcrange="-1000 1000"/>
+      <geom size="0.05 0.05 0.5" pos="0 0 0.5" type="box" rgba="0.7 0.7 0.7 1"/>
+      <body name="link2" pos="0 0 1" quat="0.681179 0.46602 0.46602 -0.318821">
+        <inertial pos="0 0 0.5" mass="1" diaginertia="0.01 0.01 0.001"/>
+        <joint name="joint2" pos="0 0 0" axis="0 0 1" range="-314159 314159" actuatorfrcrange="-1000 1000"/>
+        <geom size="0.05 0.05 0.5" pos="0 0 0.5" type="box" rgba="0.3 0.3 0.8 1"/>
+      </body>
+    </body>
+  </worldbody>
+</mujoco>

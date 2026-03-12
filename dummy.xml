@@ -1,5 +1,6 @@
 <mujoco model="two_dof_robot">
   <compiler angle="radian"/>
+  <option timestep="0.002" integrator="RK4"/>
 
   <worldbody>
     <body name="link1">

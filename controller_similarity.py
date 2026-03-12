@@ -10,9 +10,20 @@ BASE = os.path.dirname(os.path.abspath(__file__))
 DT, T, NQ = 0.002, 10.0, 2
 STATE_MAX = 1e6
 
+# reference value: can be constant or time-varying
+Q_REF_STATIC = np.deg2rad([-100.0, 100.0])
+
+def q_ref(t):
+    """Return reference joint positions at time t (rad). Customize as needed."""
+    # Example: constant
+    # return Q_REF_STATIC.copy()
+    # Example: sinusoidal sweep
+    omega = 0.5 * np.pi / T
+    return np.deg2rad([-100.0 + 80 * np.sin(omega * t), 100.0 - 80 * np.sin(omega * t)])
+
 # Hardcoded
 Q0 = np.deg2rad([30.0, -20.0])
-TAU = np.array([0.5, 0.2])       # torque input
+# TAU = np.array([0.5, 0.2])       # torque input
 DAMPING, STIFFNESS = 1, 1       # damping and stiffness coefficients
 
 # MuJoCo
@@ -28,8 +39,12 @@ n_mj = int(T / mj_dt)
 t_mj = np.linspace(0, T, n_mj + 1)
 q_mj = np.zeros((n_mj + 1, NQ))
 d.qpos[:NQ] = q_mj[0] = Q0
+
+
+
 for i in range(1, n_mj + 1):
-    d.ctrl[:NQ] = TAU       # torque input
+    # d.ctrl[:NQ] = STIFFNESS * (q_ref - d.qpos[:NQ])       # torque input
+    m.qpos_spring[:NQ] = q_ref(t_mj[i - 1])
     mujoco.mj_step(m, d)
     q_mj[i] = d.qpos[:NQ].copy()
     if np.max(np.abs(d.qpos[:NQ])) > STATE_MAX or np.max(np.abs(d.qvel[:NQ])) > STATE_MAX:
@@ -42,18 +57,18 @@ for i in range(1, n_mj + 1):
 pin_model = pin.buildModelFromUrdf(os.path.join(BASE, "dummy.urdf"))
 pin_data = pin_model.createData()
 
-def dynamics(q, v, tau):
+def dynamics(q, v, tau, q_ref_t):
     q, v, tau = np.asarray(q).reshape(-1), np.asarray(v).reshape(-1), np.asarray(tau).reshape(-1)
     M = pin.crba(pin_model, pin_data, q)
     b = pin.nonLinearEffects(pin_model, pin_data, q, v)
-    vdot = np.linalg.solve(M, tau - b - DAMPING * v - STIFFNESS * q)   # (M + B)*vdot + b + damping*v + stiffness*(q - q_eq) = tau
+    vdot = np.linalg.solve(M, tau - b - DAMPING * v - STIFFNESS * (q - q_ref_t))   # (M + B)*vdot + b + damping*v + stiffness*(q - q_eq) = tau
     return v, vdot
 
-def rk4(q, v, tau, dt):
-    k1q, k1v = dynamics(q, v, tau)
-    k2q, k2v = dynamics(q + 0.5 * dt * k1q, v + 0.5 * dt * k1v, tau)
-    k3q, k3v = dynamics(q + 0.5 * dt * k2q, v + 0.5 * dt * k2v, tau)
-    k4q, k4v = dynamics(q + dt * k3q, v + dt * k3v, tau)
+def rk4(q, v, tau, dt, q_ref_t):
+    k1q, k1v = dynamics(q, v, tau, q_ref_t)
+    k2q, k2v = dynamics(q + 0.5 * dt * k1q, v + 0.5 * dt * k1v, tau, q_ref_t)
+    k3q, k3v = dynamics(q + 0.5 * dt * k2q, v + 0.5 * dt * k2v, tau, q_ref_t)
+    k4q, k4v = dynamics(q + dt * k3q, v + dt * k3v, tau, q_ref_t)
     return q + (dt / 6) * (k1q + 2 * k2q + 2 * k3q + k4q), v + (dt / 6) * (k1v + 2 * k2v + 2 * k3v + k4v)
 
 n_pin = int(T / DT)
@@ -62,7 +77,7 @@ q_pin = np.zeros((n_pin + 1, NQ))
 q_pin[0] = Q0
 q, v = Q0.copy(), np.zeros(NQ)
 for k in range(n_pin):
-    q, v = rk4(q, v, TAU, DT)       # RK4 solver
+    q, v = rk4(q, v, np.zeros(NQ), DT, q_ref(t_pin[k]))       # RK4 solver, without torque input
     q_pin[k + 1] = q.copy()
     if np.max(np.abs(q)) > STATE_MAX or np.max(np.abs(v)) > STATE_MAX:
         t_pin, q_pin = t_pin[: k + 2], q_pin[: k + 2]

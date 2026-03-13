@@ -61,7 +61,7 @@ def dynamics(q, v, tau, q_ref_t):
     q, v, tau = np.asarray(q).reshape(-1), np.asarray(v).reshape(-1), np.asarray(tau).reshape(-1)
     M = pin.crba(pin_model, pin_data, q)
     b = pin.nonLinearEffects(pin_model, pin_data, q, v)
-    vdot = np.linalg.solve(M, tau - b - DAMPING * v - STIFFNESS * (q - q_ref_t))   # (M + B)*vdot + b + damping*v + stiffness*(q - q_eq) = tau
+    vdot = np.linalg.solve(M, tau - b)   # (M + B)*vdot + b = tau
     return v, vdot
 
 def rk4(q, v, tau, dt, q_ref_t):
@@ -77,7 +77,8 @@ q_pin = np.zeros((n_pin + 1, NQ))
 q_pin[0] = Q0
 q, v = Q0.copy(), np.zeros(NQ)
 for k in range(n_pin):
-    q, v = rk4(q, v, np.zeros(NQ), DT, q_ref(t_pin[k]))       # RK4 solver, without torque input
+    tau = + DAMPING * (np.zeros(NQ) - v) + STIFFNESS * (q_ref(t_pin[k]) - q)
+    q, v = rk4(q, v, tau, DT, np.zeros(NQ))       # RK4 solver, without torque input
     q_pin[k + 1] = q.copy()
     if np.max(np.abs(q)) > STATE_MAX or np.max(np.abs(v)) > STATE_MAX:
         t_pin, q_pin = t_pin[: k + 2], q_pin[: k + 2]
